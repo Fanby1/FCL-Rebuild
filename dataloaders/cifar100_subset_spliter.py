@@ -36,6 +36,7 @@ class Cifar100_Spliter():
 		self.private_class_num = private_class_num
 		self.input_size = input_size
 		self.cifar100_dataset = CIFAR100(root=path, train=True, download=True)
+		self.cifar100_test_dataset = CIFAR100(root=path, train=False, download=True)
 		
 
 
@@ -108,7 +109,7 @@ class Cifar100_Spliter():
 
 	def process_testdata(self,surrogate_num):
 		trans = build_transform(False,self.input_size)
-		testset = self.cifar100_dataset
+		testset = self.cifar100_test_dataset
 		# 100个类别的数据分给三个客户端使用
 
 		class_counts = torch.zeros(100)  # 每个类的数量

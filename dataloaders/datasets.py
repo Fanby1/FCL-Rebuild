@@ -17,7 +17,7 @@ from timm.data import create_transform
 
 
 
-import utils
+import utils.utils as utils
 
 class Lambda(transforms.Lambda):
 	def __init__(self, lambd, nb_classes):

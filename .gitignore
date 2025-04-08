@@ -90,3 +90,6 @@ dmypy.json
 
 # profiling data
 .prof
+
+# models and data
+/outputs

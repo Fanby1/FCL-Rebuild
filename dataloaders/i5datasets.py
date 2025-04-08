@@ -10,7 +10,7 @@ from torch.utils.data import Subset
 from torchvision.datasets import MNIST
 from torchvision.transforms import transforms
 
-from utils import build_transform
+from utils.utils import build_transform
 
 
 class i5datasets(object):

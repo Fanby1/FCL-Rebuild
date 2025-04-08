@@ -10,9 +10,9 @@ from torchvision import datasets, transforms
 from timm.data import create_transform
 from tqdm import tqdm
 
-from data.continual_datasets import *
+from dataloaders.continual_datasets import *
 
-import utils
+import utils.utils as utils
 
 
 T_co = TypeVar('T_co', covariant=True)

@@ -5,8 +5,6 @@ from typing import TypeVar, Sequence
 import numpy as np
 
 import torch
-import torchvision
-from matplotlib import pyplot as plt
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import Subset, Dataset, DataLoader
 from torchvision.datasets import MNIST,CIFAR100
