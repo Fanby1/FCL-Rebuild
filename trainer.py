@@ -13,12 +13,12 @@ import learners
 
 class Trainer:
 
-	def __init__(self, args, seed, metric_keys, save_keys, train_dataset=None, test_dataset=None, validate_dataset=None, class_mask=None, client_index=-1):
+	def __init__(self, args, seed, metric_keys, save_kays, train_dataset=None, test_dataset=None, validate_dataset=None, class_mask=None, client_index=-1):
 
 		# process inputs
 		self.seed = seed
 		self.metric_keys = metric_keys
-		self.save_keys = save_keys
+		self.save_keys = save_kays
 		self.log_dir = args.log_dir
 		self.batch_size = args.batch_size
 		self.workers = args.workers
@@ -96,20 +96,18 @@ class Trainer:
 		self.learner_type, self.learner_name = args.learner_type, args.learner_name
 		self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
 
-	def task_eval(self, t_index, task='acc', local=False):
+	def task_eval(self, t_index, t_last=-1, task='acc', local=False):
 
 		val_name = self.task_names[t_index]
 		print('validation split name:', val_name)
-		
+  
+		val_dataset = self.validate_dataset[t_index]
 		# eval
 		if local:
-			val_dataset = self.validate_dataset[t_index]
 			class_mask = self.class_mask[t_index]
 		else:
-			val_dataset = []
 			class_mask = []
-			for i in range(t_index + 1):
-				val_dataset.extend(self.validate_dataset[i])
+			for i in range(t_last + 1):
 				class_mask.extend(self.class_mask[i])
 				class_mask = sorted(list(set(class_mask)))
 		# val_loader = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
@@ -153,7 +151,7 @@ class Trainer:
 		train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=int(self.workers))
 
 		# increment task id in prompting modules
-		if self.curr_task > 0:
+		if self.curr_task > 0 and self.conmunication_round == 0:
 			try:
 				if self.learner.model.module.prompt is not None:
 					self.learner.model.module.prompt.process_task_count()
@@ -167,20 +165,18 @@ class Trainer:
 		model_save_dir = self.model_top_dir + f'/models/repeat-{self.seed+1}/client-{self.client_index}/task-{train_name}/comunication_round-{self.conmunication_round}/'
 		if not os.path.exists(model_save_dir): os.makedirs(model_save_dir)
 		avg_train_time = self.learner.learn_batch(train_loader, train_dataset, model_save_dir, val_loader, task_index = self.curr_task, class_mask = self.class_mask[self.curr_task])
+		if self.conmunication_round == 4:
+			self.learner.after_task(train_dataset)
 
 		# evaluate acc
-		acc_table = []
-		acc_table_ssl = []
-		self.reset_cluster_labels = True
-		for j in range(self.curr_task+1):
-			acc_table.append(self.task_eval(j, local=True))
-		temp_table['acc'].append(np.mean(np.asarray(acc_table)))
-		# temp_table['acc'].append(1.0)
+		train_acc = []
+		train_acc.append(self.task_eval(self.curr_task, t_last=self.curr_task, local=False))
+		train_acc.append(self.task_eval(0, t_last=self.curr_task, local=False))
 
 		# save temporary acc results
 		for mkey in ['acc']:
 			save_file = temp_dir + mkey + '.csv'
-			np.savetxt(save_file, np.asarray(temp_table[mkey]), delimiter=",", fmt='%.2f')  
+			np.savetxt(save_file, train_acc, delimiter=",", fmt='%.2f')  
 
 		if avg_train_time is not None: avg_metrics['time'][f'client-{self.client_index}'][self.curr_task] = avg_train_time
 		
@@ -188,32 +184,6 @@ class Trainer:
 		self.learner.save_model(model_save_dir)
   
 		return avg_metrics 
-	
-	def summarize_acc(self, acc_dict, acc_table, acc_table_pt):
-
-		# unpack dictionary
-		avg_acc_all = acc_dict['global']
-		avg_acc_pt = acc_dict['pt']
-		avg_acc_pt_local = acc_dict['pt-local']
-
-		# Calculate average performance across self.tasks
-		# Customize this part for a different performance metric
-		avg_acc_history = [0] * self.max_task
-		for i in range(self.max_task):
-			train_name = self.task_names[i]
-			cls_acc_sum = 0
-			for j in range(i+1):
-				val_name = self.task_names[j]
-				cls_acc_sum += acc_table[val_name][train_name]
-				avg_acc_pt[j,i,self.seed] = acc_table[val_name][train_name]
-				avg_acc_pt_local[j,i,self.seed] = acc_table_pt[val_name][train_name]
-			avg_acc_history[i] = cls_acc_sum / (i + 1)
-
-		# Gather the final avg accuracy
-		avg_acc_all[:,self.seed] = avg_acc_history
-
-		# repack dictionary and return
-		return {'global': avg_acc_all,'pt': avg_acc_pt,'pt-local': avg_acc_pt_local}
 
 	def evaluate(self, avg_metrics):
 
@@ -238,7 +208,7 @@ class Trainer:
 						self.learner.model.prompt.process_task_count()
 
 			# load model
-			model_save_dir = self.model_top_dir + f'/models/repeat-{self.seed+1}/client-{self.client_index}/task-{self.task_names[i]}/comunication_round-{1}/'
+			model_save_dir = self.model_top_dir + f'/models/repeat-{self.seed+1}/client-{self.client_index}/task-{self.task_names[i]}/comunication_round-{4}/'
 			self.learner.task_count = i 
 			self.learner.pre_steps()
 			self.learner.load_model(model_save_dir)
@@ -251,18 +221,13 @@ class Trainer:
 				self.learner.model.task_id = i
 
 			# evaluate acc
-			metric_table['acc'][self.task_names[i]] = OrderedDict()
-			metric_table_local['acc'][self.task_names[i]] = OrderedDict()
-			self.reset_cluster_labels = True
-			for j in range(i+1):
-				val_name = self.task_names[j]
-				metric_table['acc'][val_name][self.task_names[i]] = self.task_eval(j)
-			for j in range(i+1):
-				val_name = self.task_names[j]
-				metric_table_local['acc'][val_name][self.task_names[i]] = self.task_eval(j, local=True)
-    
+			skey = 'global' if self.client_index == 0 else f'client-{self.client_index}'
+			mkey = 'task-1-acc'
+			avg_metrics[mkey][skey][i] = self.task_eval(0, t_last=i, local=False)
+   
+			mkey = 'last-task-acc'
+			avg_metrics[mkey][skey][i] = self.task_eval(i, t_last=i, local=False)
+			
 			self.learner.cpu()
-		# summarize metrics
-		# avg_metrics['acc'] = self.summarize_acc(avg_metrics['acc'], metric_table['acc'],  metric_table_local['acc'])
-
+		
 		return avg_metrics

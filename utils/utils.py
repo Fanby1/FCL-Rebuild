@@ -33,15 +33,56 @@ def federated_average(all_client_trainers, num_samples, class_mask = None):
 	"""
 	w_avg = copy.deepcopy(all_client_trainers[0].learner.model.state_dict()) # create a new model with the same structure as the first client model
 	total_weight = sum(num_samples)
+
+	# iterate over the clients and get the class mask
+	if class_mask is None:
+		class_mask = [] # create a new class mask
+		for trainer in all_client_trainers:
+			client_class_mask = trainer.learner.class_mask
+			class_mask.extend(client_class_mask) # extend the class mask with the client class mask
+		class_mask = sorted(list(set(class_mask)))
+			
+	# create a mask frequency for the classes
+	class_frequency = {}
+	for trainer in all_client_trainers: # iterate over the clients
+		client_class_frequency = trainer.learner.class_frequency # get the class frequency for the client
+		for index in client_class_frequency.keys():
+			if index in class_frequency:
+				class_frequency[index] += client_class_frequency[index]
+			else:
+				class_frequency[index] = client_class_frequency[index]
+       
 	for key in w_avg.keys(): # iterate over the keys of the model
 		weighted_sum = None
 		for i in range(len(num_samples)): # iterate over the cleint weights
-			# print(all_client_weights)
-			weight = num_samples[i] / total_weight
-			if weighted_sum is None:
-				weighted_sum = weight * all_client_trainers[i].learner.model.state_dict()[key]
+			if key.startswith('last'):
+				# aggregate the last layer weights by frequency
+				weight = all_client_trainers[i].learner.model.state_dict()[key]
+				out_dim = all_client_trainers[i].learner.out_dim
+				client_class_frequency = all_client_trainers[i].learner.class_frequency
+				client_class_mask = all_client_trainers[i].learner.class_mask
+				client_class_mask = generate_index(range(out_dim), client_class_mask).float()
+				try:
+					weight = client_class_mask * weight
+				except:
+					weight = client_class_mask.view(-1, 1) * weight
+				for class_index in client_class_frequency.keys():
+					try:
+						weight[class_index, :] *= client_class_frequency[class_index] / class_frequency[class_index]
+					except:
+						weight[class_index] *= client_class_frequency[class_index] / class_frequency[class_index]
+     
+				if weighted_sum is None:
+					weighted_sum = weight
+				else:
+					weighted_sum += weight
 			else:
-				weighted_sum += weight * all_client_trainers[i].learner.model.state_dict()[key]
+				# print(all_client_weights)
+				weight = num_samples[i] / total_weight
+				if weighted_sum is None:
+					weighted_sum = weight * all_client_trainers[i].learner.model.state_dict()[key]
+				else:
+					weighted_sum += weight * all_client_trainers[i].learner.model.state_dict()[key]
 		w_avg[key] = weighted_sum
 	return w_avg
 

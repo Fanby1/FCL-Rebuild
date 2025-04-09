@@ -36,6 +36,7 @@ class NormalNN(nn.Module):
   
 		# count trained classes
 		self.class_mask = []
+		self.class_frequency = {}
 
 		# class balancing
 		self.dw = self.config['DW']
@@ -83,6 +84,11 @@ class NormalNN(nn.Module):
 		self.class_mask.extend(class_mask)
 		self.class_mask = sorted(list(set(self.class_mask)))
 		self.curr_class_mask = class_mask
+		for class_index in class_mask:
+			if class_index in self.class_frequency:
+				self.class_frequency[class_index] += 1
+			else:
+				self.class_frequency[class_index] = 1
   
 		# trains
 		if self.reset_optimizer:  # Reset optimizer before learning each task
@@ -139,11 +145,6 @@ class NormalNN(nn.Module):
 		self.last_valid_out_dim = self.valid_out_dim
 		self.first_task = False
 
-		# Extend memory
-		self.task_count += 1
-		if self.memory_size > 0:
-			train_dataset.update_coreset(self.memory_size, np.arange(self.last_valid_out_dim))
-
 		try:
 			return batch_time.avg
 		except:
@@ -172,19 +173,18 @@ class NormalNN(nn.Module):
 		self.optimizer.step()
 		return total_loss.detach(), logits
 
+	def after_task(self, train_dataset):
+		# Extend memory
+		self.task_count += 1
+		if self.memory_size > 0:
+			train_dataset.update_coreset(self.memory_size, np.arange(self.last_valid_out_dim))
+
+
 	def validation(self, dataloader, model=None, class_mask = None, task_metric='acc',  verbal = True, task_global=False, task_index=-1):
 		print('Validation...')
 		print(class_mask)
 		if model is None:
 			model = self.model
-   
-		# 查看当前 GPU 的显存使用情况
-		print(f"Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
-		print(f"Reserved memory: {torch.cuda.memory_reserved() / 1024**2:.2f} MB")
-		torch.cuda.empty_cache()  # 清空缓存
-		# 查看当前 GPU 的显存使用情况
-		print(f"Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
-		print(f"Reserved memory: {torch.cuda.memory_reserved() / 1024**2:.2f} MB")
 
 		# This function doesn't distinguish tasks.
 		batch_timer = Timer()
@@ -227,24 +227,7 @@ class NormalNN(nn.Module):
 	  
 					acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
      
-			# # 查看当前 GPU 的显存使用情况
-			# print(f"Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
-			# print(f"Reserved memory: {torch.cuda.memory_reserved() / 1024**2:.2f} MB")
-			# torch.cuda.empty_cache()  # 清空缓存
-			# # 查看当前 GPU 的显存使用情况
-			# print(f"Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
-			# print(f"Reserved memory: {torch.cuda.memory_reserved() / 1024**2:.2f} MB")
-			# print("------------")
-
-
-
-		# 查看当前 GPU 的显存使用情况
-		print(f"Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
-		print(f"Reserved memory: {torch.cuda.memory_reserved() / 1024**2:.2f} MB")
 		torch.cuda.empty_cache()  # 清空缓存
-		# 查看当前 GPU 的显存使用情况
-		print(f"Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
-		print(f"Reserved memory: {torch.cuda.memory_reserved() / 1024**2:.2f} MB")
 		model.train(orig_mode)
 
 		if verbal:
