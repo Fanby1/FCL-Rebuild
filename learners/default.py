@@ -83,7 +83,7 @@ class NormalNN(nn.Module):
 		# update class mask
 		self.class_mask.extend(class_mask)
 		self.class_mask = sorted(list(set(self.class_mask)))
-		self.curr_class_mask = class_mask
+		self.curr_class_mask = sorted(class_mask)
 		for class_index in class_mask:
 			if class_index in self.class_frequency:
 				self.class_frequency[class_index] += 1
@@ -156,11 +156,8 @@ class NormalNN(nn.Module):
 
 	def update_model(self, inputs, targets, target_scores = None, dw_force = None, kd_index = None):
 		
-		dw_cls = self.dw_k[-1 * torch.ones(targets.size()).long()]
-		# logits = self.forward(inputs, class_mask=self.curr_class_mask) 
+		dw_cls = self.dw_k[-1 * torch.ones(targets.size()).long()] 
 		logits = self.forward(inputs) 
-		# print('logits:', logits.shape)
-		# print('targets:', targets.shape)
   
 		# remap targets to class mask
 		for i in range(len(self.class_mask)):
@@ -210,22 +207,13 @@ class NormalNN(nn.Module):
 			input, target = input[mask_ind], target[mask_ind]
 			
 			if len(target) > 1:
-				if task_global:
-					output = model.forward(input)[:, class_mask]
-	 
-					# remap targets to class mask
-					for i in range(len(class_mask)):
-						target[target == class_mask[i]] = i
-	  
-					acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
-				else:
-					output = model.forward(input)[:, class_mask]
+				output = model.forward(input)[:, class_mask]
 					
-					# remap targets to class mask
-					for i in range(len(class_mask)):
-						target[target == class_mask[i]] = i
-	  
-					acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
+				# remap targets to class mask
+				for i in range(len(class_mask)):
+					target[target == class_mask[i]] = i
+	
+				acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
      
 		torch.cuda.empty_cache()  # 清空缓存
 		model.train(orig_mode)
@@ -316,12 +304,9 @@ class NormalNN(nn.Module):
 	def reset_model(self):
 		self.model.apply(weight_reset)
 
-	def forward(self, x, class_mask=None):
+	def forward(self, x):
 		# forward pass
-		if class_mask is not None:
-			return self.model.forward(x)[:, class_mask]
-		else:
-			return self.model.forward(x)[:, self.class_mask]
+		return self.model.forward(x)[:, self.class_mask]
 
 	def predict(self, inputs):
 		self.model.eval()

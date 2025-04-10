@@ -34,9 +34,9 @@ class Prompt(NormalNN):
 			targets[targets == self.class_mask[i]] = i
 
 		# ce with heuristic
-		for i in range(len(self.class_mask)):
-			if self.class_mask[i] not in self.curr_class_mask:
-				logits[:,i] = -float('inf')
+		# for i in range(len(self.class_mask)):
+		# 	if self.class_mask[i] not in self.curr_class_mask:
+		# 		logits[:,i] = -float('inf')
 		dw_cls = self.dw_k[-1 * torch.ones(targets.size()).long()]
 		total_loss = self.criterion(logits, targets.long(), dw_cls)
 

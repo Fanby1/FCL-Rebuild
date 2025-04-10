@@ -96,20 +96,20 @@ class Trainer:
 		self.learner_type, self.learner_name = args.learner_type, args.learner_name
 		self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
 
-	def task_eval(self, t_index, t_last=-1, task='acc', local=False):
+	def task_eval(self, t_index, t_last=-1, task='acc', test=False):
 
 		val_name = self.task_names[t_index]
 		print('validation split name:', val_name)
   
-		val_dataset = self.validate_dataset[t_index]
-		# eval
-		if local:
-			class_mask = self.class_mask[t_index]
+		if test:
+			val_dataset = self.test_dataset[t_index]
 		else:
-			class_mask = []
-			for i in range(t_last + 1):
-				class_mask.extend(self.class_mask[i])
-				class_mask = sorted(list(set(class_mask)))
+			val_dataset = self.validate_dataset[t_index]
+		# eval
+		class_mask = []
+		for i in range(t_last + 1):
+			class_mask.extend(self.class_mask[i])
+			class_mask = sorted(list(set(class_mask)))
 		# val_loader = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
 		val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False, drop_last=False, num_workers=self.workers)
 		return self.learner.validation(val_loader, class_mask = class_mask, task_metric=task, task_index = t_index)
@@ -170,8 +170,8 @@ class Trainer:
 
 		# evaluate acc
 		train_acc = []
-		train_acc.append(self.task_eval(self.curr_task, t_last=self.curr_task, local=False))
-		train_acc.append(self.task_eval(0, t_last=self.curr_task, local=False))
+		train_acc.append(self.task_eval(self.curr_task, t_last=self.curr_task))
+		train_acc.append(self.task_eval(0, t_last=self.curr_task))
 
 		# save temporary acc results
 		for mkey in ['acc']:
@@ -223,10 +223,10 @@ class Trainer:
 			# evaluate acc
 			skey = 'global' if self.client_index == 0 else f'client-{self.client_index}'
 			mkey = 'task-1-acc'
-			avg_metrics[mkey][skey][i] = self.task_eval(0, t_last=i, local=False)
+			avg_metrics[mkey][skey][i] = self.task_eval(0, t_last=i, test=False)
    
 			mkey = 'last-task-acc'
-			avg_metrics[mkey][skey][i] = self.task_eval(i, t_last=i, local=False)
+			avg_metrics[mkey][skey][i] = self.task_eval(i, t_last=i, test=False)
 			
 			self.learner.cpu()
 		

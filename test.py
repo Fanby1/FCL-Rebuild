@@ -88,7 +88,7 @@ if __name__ == "__main__":
 		learner_pool.append(trainer)
 	for task in range(5):
 		for comunication_round in range(5):
-     		# distribute model to clients     
+			# distribute model to clients     
 			for j in range(5):
 				learner_pool[j].learner.model.load_state_dict(global_trainer.learner.model.state_dict())
 				learner_pool[j].curr_task = task
