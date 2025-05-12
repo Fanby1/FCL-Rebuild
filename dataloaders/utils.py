@@ -23,7 +23,7 @@ def global_distillation_loss(output,outputs):
 		total_loss +=loss
 	return total_loss
 
-def build_transform(is_train,input_size):
+def build_transform(is_train,input_size) -> transforms.Compose: 
 	resize_im = input_size > 32
 	if is_train:
 		scale = (0.05, 1.0)
@@ -50,12 +50,14 @@ def process_file(fpath, folder, idx):
 	folder_path = os.path.join(fpath, folder)
 	X = []
 	y = []
+	path = []
 	for ims in os.listdir(folder_path):
 		img_path = os.path.join(folder_path, ims)
 		try:
-			img = np.array(Image.open(img_path).convert('RGB'))
-			X.append(img)
+			# img = np.array(Image.open(img_path).convert('RGB'))
+			X.append(None)
 			y.append(idx)
+			path.append(img_path)
 		except Exception as e:
 			print(f"Error processing {img_path}: {e}")
-	return X, y
+	return X, y, path

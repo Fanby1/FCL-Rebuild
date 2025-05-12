@@ -687,6 +687,8 @@ class Imagenet_R(torch.utils.data.Dataset):
 
 		# 使用线程池并行加载图片
 		cpu_count = os.cpu_count() * 2
+  
+		path_list = []
 		with ThreadPoolExecutor(max_workers=cpu_count) as executor:
 			futures = []
 			for idx, folder in enumerate(folders):
@@ -694,12 +696,14 @@ class Imagenet_R(torch.utils.data.Dataset):
 
 			# 收集结果
 			for future in futures:
-				img, label = future.result()
+				img, label, path = future.result()
 				if img is not None:
 					X.extend(img)
 					Y.extend(label)
+					path_list.extend(path)
 		self.data = X
 		self.targets = Y
+		self.path_list = path_list
 
 	def split(self):
 		train_folder = self.fpath + '/train'

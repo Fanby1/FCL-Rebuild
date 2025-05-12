@@ -1,22 +1,13 @@
 import random
-import time
-from typing import TypeVar, Sequence
-
 import numpy as np
 
 import torch
-import torchvision
-from torch.nn import CrossEntropyLoss
-from torch.utils.data import Subset, Dataset, DataLoader
 from torchvision.datasets import MNIST,CIFAR100
 from torchvision.transforms import transforms
 from tqdm import tqdm
-from PIL import Image
 
 from dataloaders.utils import build_transform
-
-T_co = TypeVar('T_co', covariant=True)
-T = TypeVar('T')
+from dataloaders.customed_dataset import CustomedSubset
 
 
 class Cifar100_Spliter():
@@ -191,50 +182,3 @@ class Cifar100_Spliter():
 				client_subset[i].append(CustomedSubset(trainset,index,trans))
 
 		return client_subset,client_mask
-
-
-
-
-class CustomedSubset(Dataset[T_co]):
-	r"""
-	Subset of a dataset at specified indices.
-
-	Args:
-		dataset (Dataset): The whole Dataset
-		indices (sequence): Indices in the whole set selected for subset
-	"""
-	dataset: Dataset[T_co]
-	indices: Sequence[int]
-
-	def __init__(self, dataset: Dataset[T_co], indices: Sequence[int],trans) -> None:
-
-		self.indices = indices
-		self.data = []
-		self.targets = []
-		self.dataset = dataset
-		self.transform = trans
-		for i in self.indices:
-			self.data.append(dataset.data[i])
-			self.targets.append(dataset.targets[i])
-		self.data = np.array(self.data)
-		self.targets = np.array(self.targets)
-		self.target_transform = None
-
-	def __getitem__(self, idx):
-		img, target = self.data[idx], self.targets[idx]
-		img = Image.fromarray(img)
-
-		if self.transform is not None:
-			img = self.transform(img)
-
-		if self.target_transform is not None:
-			target = self.target_transform(target)
-		return img,target
-
-	def __len__(self):
-		return len(self.indices)
-
-
-
-
-

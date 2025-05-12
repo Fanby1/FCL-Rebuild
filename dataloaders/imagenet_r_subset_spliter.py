@@ -1,31 +1,22 @@
 import random
-import time
-from typing import TypeVar, Sequence
-
 import numpy as np
-
 import torch
-from torch.nn import CrossEntropyLoss
-from torch.utils.data import Subset, Dataset, DataLoader
-from torchvision.datasets import MNIST,CIFAR100
-from torchvision.transforms import transforms
+
 from tqdm import tqdm
-from PIL import Image
 
 from dataloaders.continual_datasets import Imagenet_R
 from dataloaders.utils import build_transform
-
-T_co = TypeVar('T_co', covariant=True)
-T = TypeVar('T')
+from dataloaders.customed_dataset import CustomedSubset
 
 
 class ImageNetR_Spliter():
 
-	def __init__(self,client_num,task_num,private_class_num,input_size,path):
+	def __init__(self,client_num, attacker_num, task_num, private_class_num, input_size, path):
 		self.client_num = client_num
+		self.attacker_num = attacker_num
+		self.attacker_client_index = [i for i in range(client_num)]
+		self.attacker_client_index = random.sample(self.attacker_client_index, attacker_num)
 		self.task_num = task_num
-		scale = (0.05, 1.0)
-		ratio = (3. / 4., 4. / 3.)
 
 		self.private_class_num = private_class_num
 		self.input_size = input_size
@@ -68,14 +59,14 @@ class ImageNetR_Spliter():
 
 
 		# 对每个客户端进行操作
-		client_subset = [[] for i in range(0,self.client_num)]
-		client_mask = [[] for i in range(0,self.client_num)]
+		client_subset = [[] for _ in range(0,self.client_num + self.attacker_num)]
+		client_mask = [[] for _ in range(0,self.client_num + self.attacker_num)]
 
 		class_every_task = int((public_class_num+self.private_class_num)/self.task_num)
 		dirichlet_perclass = {}
 		for i in class_public:
 			a = np.random.dirichlet(np.ones(self.client_num), 1)
-			while  (a < 0.1).any():
+			while  (a < (1 / self.client_num / 2)).any():
 				a = np.random.dirichlet(np.ones(self.client_num), 1)
 			dirichlet_perclass[i] = a[0]
 
@@ -100,6 +91,10 @@ class ImageNetR_Spliter():
 						index.extend(class_label[k])
 				random.shuffle(index)
 				client_subset[i].append(CustomedSubset(trainset,index,trans,None))
+				for attacker_index in range(self.attacker_num):
+					if i == self.attacker_client_index[attacker_index]:
+						client_subset[attacker_index + self.client_num].append(CustomedSubset(trainset,index,trans,None,attacker=True))
+						client_mask[attacker_index + self.client_num].append(class_this_task)
 
 		return client_subset,client_mask
 
@@ -184,65 +179,3 @@ class ImageNetR_Spliter():
 				client_subset[i].append(CustomedSubset(trainset, index, trans,None))
 
 		return client_subset,client_mask
-
-
-
-
-class CustomedSubset(Dataset[T_co]):
-	r"""
-	Subset of a dataset at specified indices.
-
-	Args:
-		dataset (Dataset): The whole Dataset
-		indices (sequence): Indices in the whole set selected for subset
-	"""
-	dataset: Dataset[T_co]
-	indices: Sequence[int]
-
-	def __init__(self, dataset: Dataset[T_co], indices: Sequence[int],trans,show_sample) -> None:
-
-		self.indices = indices
-		self.data = []
-		self.targets = []
-		self.dataset = dataset
-		self.transform_pretrain = trans
-
-		self.show_sample = show_sample
-
-		for i in self.indices:
-			self.data.append(dataset.data[i])
-			self.targets.append(dataset.targets[i])
-		# self.data = self.data
-		self.targets = np.array(self.targets)
-		self.transform=trans
-		self.target_transform = None
-
-	def __getitem__(self, idx):
-		img, target = self.data[idx], self.targets[idx]
-		img = Image.fromarray(img)
-
-		if self.transform_pretrain is not None:
-			img_pre = self.transform_pretrain(img)
-
-
-		if self.target_transform is not None:
-			target = self.target_transform(target)
-		return img_pre,target
-
-	def get_test_sample(self):
-		img = self.show_sample
-
-		if self.transform_pretrain is not None:
-			img_pre = self.transform_pretrain(img)
-
-
-		return img
-
-
-	def __len__(self):
-		return len(self.indices)
-
-
-
-
-
