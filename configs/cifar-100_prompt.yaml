@@ -1,12 +1,13 @@
-dataset: CIFAR100
+dataset: ImageNet_R
 first_split_size: 10
 other_split_size: 10
 schedule:
-- 10
+- 20
+- 5
 schedule_type: cosine
-batch_size: 64
+batch_size: 128
 optimizer: Adam
-lr: 0.0005
+lr: 0.001
 momentum: 0.9
 weight_decay: 0
 model_type: zoo
@@ -17,3 +18,6 @@ workers: 1
 validation: False
 train_aug: True
 rand_split: True
+muProx: 10
+muMoon: 0.1
+tau: 0.5

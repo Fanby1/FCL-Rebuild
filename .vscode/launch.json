@@ -5,7 +5,20 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Python 调试程序: 测试脚本",
+			"name": "CPrompt",
+			"type": "debugpy",
+			"request": "launch",
+			"program": "test.py",
+			"console": "integratedTerminal",
+			"args": [
+				"--learner_type", "prompt",
+				"--learner_name", "CPrompt",
+				"--prompt_param", "5", "20", "6",
+				"--log_dir", "outputs/cpromt/imagenet-r"
+			]
+		},
+		{
+			"name": "CodaPrompt",
 			"type": "debugpy",
 			"request": "launch",
 			"program": "test.py",
@@ -13,7 +26,8 @@
 			"args": [
 				"--learner_type", "prompt",
 				"--learner_name", "CODAPrompt",
-				"--prompt_param", "100", "8", "0.0"
+				"--prompt_param", "100", "8", "0",
+				"--log_dir", "outputs/coda_prompt/global-lg-test"
 			]
 		}
 	]

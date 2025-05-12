@@ -86,17 +86,19 @@ class Trainer:
 						'temp': args.temp,
 						'out_dim': num_classes,
 						'overwrite': args.overwrite == 1,
+						'tau': args.tau,
 						'DW': args.DW,
 						'batch_size': args.batch_size,
 						'upper_bound_flag': args.upper_bound_flag,
 						'tasks': self.tasks_logits,
 						'top_k': self.top_k,
+						'fedmoon': args.fedMoon,
 						'prompt_param':[self.num_tasks,args.prompt_param]
 						}
 		self.learner_type, self.learner_name = args.learner_type, args.learner_name
 		self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
 
-	def task_eval(self, t_index, t_last=-1, task='acc', test=False):
+	def task_eval(self, t_index, t_last=-1, task='acc', test=False, in_task=False):
 
 		val_name = self.task_names[t_index]
 		print('validation split name:', val_name)
@@ -107,11 +109,14 @@ class Trainer:
 			val_dataset = self.validate_dataset[t_index]
 		# eval
 		class_mask = []
-		for i in range(t_last + 1):
-			class_mask.extend(self.class_mask[i])
-			class_mask = sorted(list(set(class_mask)))
+		if in_task:
+			class_mask = self.class_mask[t_index]
+		else:
+			for i in range(t_last + 1):
+				class_mask.extend(self.class_mask[i])
+		class_mask = sorted(list(set(class_mask)))
 		# val_loader = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
-		val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False, drop_last=False, num_workers=self.workers)
+		val_loader = DataLoader(val_dataset, batch_size=self.batch_size * 2, shuffle=False, drop_last=False, num_workers=self.workers)
 		return self.learner.validation(val_loader, class_mask = class_mask, task_metric=task, task_index = t_index)
 
 	def train(self, avg_metrics):
@@ -126,7 +131,7 @@ class Trainer:
 		
 		# save current task index
 		self.current_t_index = self.curr_task
-
+  
 		# print name
 		train_name = self.task_names[self.curr_task]
 		print('======================', train_name, '=======================')
@@ -150,28 +155,19 @@ class Trainer:
 		# load dataloader
 		train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True, num_workers=int(self.workers))
 
-		# increment task id in prompting modules
-		if self.curr_task > 0 and self.conmunication_round == 0:
-			try:
-				if self.learner.model.module.prompt is not None:
-					self.learner.model.module.prompt.process_task_count()
-			except:
-				if self.learner.model.prompt is not None:
-					self.learner.model.prompt.process_task_count()
-
 		# learn
 		val_dataset = self.validate_dataset[self.curr_task]
 		val_loader  = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
 		model_save_dir = self.model_top_dir + f'/models/repeat-{self.seed+1}/client-{self.client_index}/task-{train_name}/comunication_round-{self.conmunication_round}/'
 		if not os.path.exists(model_save_dir): os.makedirs(model_save_dir)
 		avg_train_time = self.learner.learn_batch(train_loader, train_dataset, model_save_dir, val_loader, task_index = self.curr_task, class_mask = self.class_mask[self.curr_task])
-		if self.conmunication_round == 4:
-			self.learner.after_task(train_dataset)
 
 		# evaluate acc
 		train_acc = []
 		train_acc.append(self.task_eval(self.curr_task, t_last=self.curr_task))
+		train_acc.append(self.task_eval(self.curr_task, t_last=self.curr_task, in_task=True))
 		train_acc.append(self.task_eval(0, t_last=self.curr_task))
+		train_acc.append(self.task_eval(0, t_last=self.curr_task, in_task=True))
 
 		# save temporary acc results
 		for mkey in ['acc']:
@@ -185,7 +181,7 @@ class Trainer:
   
 		return avg_metrics 
 
-	def evaluate(self, avg_metrics):
+	def evaluate(self, avg_metrics, comunication_round=0):
 
 		self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
 
@@ -202,13 +198,13 @@ class Trainer:
 			if i > 0:
 				try:
 					if self.learner.model.module.prompt is not None:
-						self.learner.model.module.prompt.process_task_count()
+						self.learner.model.module.prompt.task_count = i
 				except:
 					if self.learner.model.prompt is not None:
-						self.learner.model.prompt.process_task_count()
+						self.learner.model.prompt.task_count = i
 
 			# load model
-			model_save_dir = self.model_top_dir + f'/models/repeat-{self.seed+1}/client-{self.client_index}/task-{self.task_names[i]}/comunication_round-{4}/'
+			model_save_dir = self.model_top_dir + f'/models/repeat-{self.seed+1}/client-{self.client_index}/task-{self.task_names[i]}/comunication_round-{comunication_round}/'
 			self.learner.task_count = i 
 			self.learner.pre_steps()
 			self.learner.load_model(model_save_dir)
@@ -231,3 +227,9 @@ class Trainer:
 			self.learner.cpu()
 		
 		return avg_metrics
+
+	def before_task(self, model, previous_model, task_index, comunication_round, client_index):
+		self.curr_task = task_index
+		self.task_id = task_index
+		self.conmunication_round = comunication_round
+		self.learner.before_task(model, previous_model, task_index, comunication_round, client_index)
