@@ -12,7 +12,7 @@ import contextlib
 import os
 import copy
 from utils.schedulers import CosineSchedule
-
+import time
 class NormalNN(nn.Module):
 	'''
 	Normal Neural Network with SGD for classification
@@ -42,19 +42,13 @@ class NormalNN(nn.Module):
 		self.dw = self.config['DW']
 		if self.memory_size <= 0:
 			self.dw = False
+   
+		# check if cuda is available
+		if self.config['gpuid'][0] >= 0:
+			self.gpu = True
 
 		# supervised criterion
 		self.criterion_fn = nn.CrossEntropyLoss(reduction='none')
-		
-		# cuda gpu
-		if learner_config['gpuid'][0] >= 0:
-			self.cuda()
-			self.gpu = True
-		else:
-			self.gpu = False
-
-		# highest class index from current task
-		self.valid_out_dim = 0
 
 		# set up schedules
 		self.schedule_type = self.config['schedule_type']
@@ -62,6 +56,10 @@ class NormalNN(nn.Module):
 
 		# initialize optimizer
 		self.init_optimizer()
+  
+		# previous global model
+		self.global_model = None
+		self.previous_task_model = None
 
 	##########################################
 	#		   MODEL TRAINING			   #
@@ -91,25 +89,28 @@ class NormalNN(nn.Module):
 				self.class_frequency[class_index] = 1
   
 		# trains
-		if self.reset_optimizer:  # Reset optimizer before learning each task
+		if self.reset_optimizer and self.conmunication_round == 0:  # Reset optimizer before learning each task
 			self.log('Optimizer is reset!')
 			self.init_optimizer()
 		if need_train:
-			
+			# print('-----------------------------begin training-----------------------------')
+			# print(torch.cuda.memory_summary())
+			# time.sleep(10000)
 			# data weighting
 			self.data_weighting(train_dataset)
 			losses = AverageMeter()
 			acc = AverageMeter()
 			batch_time = AverageMeter()
 			batch_timer = Timer()
-			for epoch in range(self.config['schedule'][-1]):
+			for epoch in range(self.config['schedule'][0]):
 				self.epoch=epoch
-
 				if epoch > 0: self.scheduler.step()
 				for param_group in self.optimizer.param_groups:
 					self.log('LR:', param_group['lr'])
 				batch_timer.tic()
 				for i, (x, y)  in enumerate(train_loader):
+					
+				
 					task = task_index
 					# verify in train mode
 					self.model.train()
@@ -133,17 +134,16 @@ class NormalNN(nn.Module):
 					batch_timer.tic()
 
 				# eval update
-				self.log('Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch+1,total=self.config['schedule'][-1]))
+				self.log('Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch+1,total=self.config['schedule'][0]))
 				self.log(' * Loss {loss.avg:.3f} | Train Acc {acc.avg:.3f}'.format(loss=losses,acc=acc))
 
 				# reset
 				losses = AverageMeter()
 				acc = AverageMeter()
 				
-		self.model.eval()
 
-		self.last_valid_out_dim = self.valid_out_dim
-		self.first_task = False
+		self.model.eval()
+		self.cpu()
 
 		try:
 			return batch_time.avg
@@ -172,17 +172,40 @@ class NormalNN(nn.Module):
 
 	def after_task(self, train_dataset):
 		# Extend memory
-		self.task_count += 1
 		if self.memory_size > 0:
 			train_dataset.update_coreset(self.memory_size, np.arange(self.last_valid_out_dim))
+   
+	def before_task(self, global_model, previous_task_global, task_index, comunication_round, client_index):
+		print(f'update client {client_index} global model...')
 
+		# distribute model to client
+		try :
+			self.model.load_state_dict(copy.deepcopy(global_model.state_dict()))
+		except:
+			pass
+  
+		# set task id for model (needed for fed)
+		self.curr_task = task_index
+		self.model.task_count = task_index
+		self.model.prompt.task_count = task_index
+		self.model.task_id = task_index
+		self.conmunication_round = comunication_round
+		self.client_index = client_index
+  
+		# save previous model
+		if previous_task_global is not None:
+			self.previous_task_model = copy.deepcopy(previous_task_global)
+		self.global_model = copy.deepcopy(global_model)
 
 	def validation(self, dataloader, model=None, class_mask = None, task_metric='acc',  verbal = True, task_global=False, task_index=-1):
 		print('Validation...')
 		print(class_mask)
+		torch.cuda.empty_cache()  # 清空缓存
 		if model is None:
 			model = self.model
 
+		if self.gpu:
+			model.cuda()
 		# This function doesn't distinguish tasks.
 		batch_timer = Timer()
 		acc = AverageMeter()
@@ -197,14 +220,14 @@ class NormalNN(nn.Module):
 					input = input.cuda()
 					target = target.cuda()
 			
-			# 构造 mask，筛选出 target 中属于 class_mask 的样本
-			mask = torch.zeros_like(target, dtype=torch.bool)  # 初始化全为 False 的布尔掩码
-			for cls in class_mask:
-				mask |= (target == cls)  # 将属于 class_mask 的类别置为 True
+			# # 构造 mask，筛选出 target 中属于 class_mask 的样本
+			# mask = torch.zeros_like(target, dtype=torch.bool)  # 初始化全为 False 的布尔掩码
+			# for cls in class_mask:
+			# 	mask |= (target == cls)  # 将属于 class_mask 的类别置为 True
 	
-			# 获取有效样本的索引
-			mask_ind = mask.nonzero(as_tuple=False).view(-1)
-			input, target = input[mask_ind], target[mask_ind]
+			# # 获取有效样本的索引
+			# mask_ind = mask.nonzero(as_tuple=False).view(-1)
+			# input, target = input[mask_ind], target[mask_ind]
 			
 			if len(target) > 1:
 				output = model.forward(input)[:, class_mask]
@@ -214,13 +237,14 @@ class NormalNN(nn.Module):
 					target[target == class_mask[i]] = i
 	
 				acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
-     
-		torch.cuda.empty_cache()  # 清空缓存
+    
 		model.train(orig_mode)
 
 		if verbal:
 			self.log(' * Val Acc {acc.avg:.3f}, Total time {time:.2f}'
 					.format(acc=acc, time=batch_timer.toc()))
+   
+		model.cpu()
 		return acc.avg
 
 	##########################################
@@ -229,7 +253,7 @@ class NormalNN(nn.Module):
 
 	# data weighting
 	def data_weighting(self, dataset, num_seen=None):
-		self.dw_k = torch.tensor(np.ones(len(self.class_mask), dtype=np.float32))
+		self.dw_k = torch.tensor(np.ones(len(self.class_mask) + 1, dtype=np.float32))
 		# cuda
 		if self.cuda:
 			self.dw_k = self.dw_k.cuda()
@@ -253,14 +277,12 @@ class NormalNN(nn.Module):
 	def load_model(self, filename):
 		self.model.load_state_dict(torch.load(filename + 'class.pth'))
 		self.log('=> Load Done')
-		if self.gpu:
-			self.model = self.model.cuda()
+		self.cuda()
 		self.model.eval()
 
 	def load_model_other(self, filename, model):
 		model.load_state_dict(torch.load(filename + 'class.pth'))
-		if self.gpu:
-			model = model.cuda()
+		model = model.cuda()
 		return model.eval()
 
 	# sets model optimizers
@@ -285,9 +307,9 @@ class NormalNN(nn.Module):
 		
 		# create schedules
 		if self.schedule_type == 'cosine':
-			self.scheduler = CosineSchedule(self.optimizer, K=self.schedule[-1])
+			self.scheduler = CosineSchedule(self.optimizer, K=self.schedule[0] * self.schedule[1])
 		elif self.schedule_type == 'decay':
-			self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=self.schedule, gamma=0.1)
+			self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=self.schedule[0] * self.schedule[1], gamma=0.1)
 
 	def create_model(self):
 		cfg = self.config
@@ -320,9 +342,23 @@ class NormalNN(nn.Module):
 		return self.count_parameter() + self.memory_size * dataset_size[0]*dataset_size[1]*dataset_size[2]
 
 	def cuda(self):
+		if not self.gpu:
+			self.log('No GPU available')
+			return self
 		torch.cuda.set_device(self.config['gpuid'][0])
 		self.model = self.model.cuda()
 		self.criterion_fn = self.criterion_fn.cuda()
+  
+		try:
+			self.global_model.cuda()
+		except:
+			self.global_model = None
+
+		try:
+			self.previous_task_model.cuda()
+		except:
+			self.previous_task_model = None
+
 		# Multi-GPU
 		if len(self.config['gpuid']) > 1:
 			self.model = torch.nn.DataParallel(self.model, device_ids=self.config['gpuid'], output_device=self.config['gpuid'][0])
@@ -332,6 +368,16 @@ class NormalNN(nn.Module):
 		"""将模型和损失函数从 GPU 移动到 CPU"""
 		self.model = self.model.cpu() 
 		self.criterion_fn = self.criterion_fn.cpu()	
+  
+		try:
+			self.global_model.cpu()
+		except:
+			pass
+
+		try:
+			self.previous_task_model.cpu()
+		except:
+			pass
   
 		if isinstance(self.model, torch.nn.DataParallel):
 			self.model = self.model.module.cpu()	

@@ -1,5 +1,6 @@
 import sys
 import copy
+from datetime import datetime
 
 # want to save everything printed to outfile
 class Logger(object):
@@ -51,7 +52,7 @@ def federated_average(all_client_trainers, num_samples, class_mask = None):
 				class_frequency[index] += client_class_frequency[index]
 			else:
 				class_frequency[index] = client_class_frequency[index]
-       
+	   
 	for key in w_avg.keys(): # iterate over the keys of the model
 		weighted_sum = None
 		for i in range(len(num_samples)): # iterate over the cleint weights
@@ -71,38 +72,53 @@ def federated_average(all_client_trainers, num_samples, class_mask = None):
 						weight[class_index, :] *= client_class_frequency[class_index] / class_frequency[class_index]
 					except:
 						weight[class_index] *= client_class_frequency[class_index] / class_frequency[class_index]
-     
+	 
 				if weighted_sum is None:
 					weighted_sum = weight
 				else:
 					weighted_sum += weight
-			else:
+			elif key.startswith('prompt'):
 				# print(all_client_weights)
 				weight = num_samples[i] / total_weight
 				if weighted_sum is None:
 					weighted_sum = weight * all_client_trainers[i].learner.model.state_dict()[key]
 				else:
 					weighted_sum += weight * all_client_trainers[i].learner.model.state_dict()[key]
+			else:
+				pass
+		if weighted_sum	== None:	
+			weighted_sum = all_client_trainers[0].learner.model.state_dict()[key]
 		w_avg[key] = weighted_sum
 	return w_avg
 
 import torch
 
 def generate_index(input_list, target_list):
-    """
-    根据目标列表生成索引张量，将目标列表中存在的数对应位置置为1，其他位置为0。
+	"""
+	根据目标列表生成索引张量，将目标列表中存在的数对应位置置为1，其他位置为0。
 
-    Args:
-        input_list (list): 输入列表，表示所有可能的数。
-        target_list (list): 目标列表，表示需要置为1的数。
+	Args:
+		input_list (list): 输入列表，表示所有可能的数。
+		target_list (list): 目标列表，表示需要置为1的数。
 
-    Returns:
-        torch.Tensor: 索引张量，形状与 input_list 相同。
-    """
-    # 转换为集合以加速查找
-    target_set = set(target_list)
+	Returns:
+		torch.Tensor: 索引张量，形状与 input_list 相同。
+	"""
+	# 转换为集合以加速查找
+	target_set = set(target_list)
 
-    # 生成索引张量
-    index_tensor = torch.tensor([1 if x in target_set else 0 for x in input_list], dtype=torch.int)
+	# 生成索引张量
+	index_tensor = torch.tensor([1 if x in target_set else 0 for x in input_list], dtype=torch.int)
 
-    return index_tensor
+	return index_tensor
+
+def trace_handler(prof: torch.profiler.profile):
+   # 获取时间用于文件命名
+   timestamp = datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
+   file_name = f"visual_mem_{timestamp}"
+
+   # 导出tracing格式的profiling
+   prof.export_chrome_trace(f"{file_name}.json")
+
+   # 导出mem消耗可视化数据
+   prof.export_memory_timeline(f"{file_name}.html", device="cuda:0")
