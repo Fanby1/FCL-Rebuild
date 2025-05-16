@@ -174,7 +174,7 @@ class Spliter():
 	def random_split_synchron(self):
 		trans = build_transform(True,self.input_size)
 		# self.Imagenet_R = Imagenet_R(root='C:/Users/Admin/datasets', train=True, download=True)
-		trainset = self.Imagenet_R
+		trainset = self.train_set
 
 		# 100个类别的数据分给三个客户端使用
 		class_counts = self.train_class_counts.copy() # 每个类的数量
