@@ -1,5 +1,6 @@
 import sys
 import copy
+import json
 from datetime import datetime
 
 # want to save everything printed to outfile
@@ -122,3 +123,14 @@ def trace_handler(prof: torch.profiler.profile):
 
    # 导出mem消耗可视化数据
    prof.export_memory_timeline(f"{file_name}.html", device="cuda:0")
+   
+def write_dict_to_file(dictionary, file_path):
+    """
+    将字典写入文件。
+
+    参数:
+        dictionary (dict): 要写入的字典。
+        file_path (str): 文件路径。
+    """
+    with open(file_path, 'w', encoding='utf-8') as file:
+        json.dump(dictionary, file, ensure_ascii=False, indent=4)

@@ -10,15 +10,15 @@ from utils.utils import Logger
 import sys
 import yaml
 import numpy as np
-import torch
+from utils.utils import write_dict_to_file
 
 if __name__ == "__main__":
 	args = get_args(sys.argv[1:])
 
-	seed = 42
+	seed = 1999
 	set_seed(seed)
 	client_num = 5
-	attacker_num = 5
+	attacker_num = 0
  
 	client_count = client_num + attacker_num
 	client_weight = [1] * client_count
@@ -27,9 +27,9 @@ if __name__ == "__main__":
  
 	task_count = 5
 
-	spliter = Cifar100_Spliter(client_num=client_num, attacker_num=attacker_num, 
-                             task_num=task_count, private_class_num=15, input_size=224, path='C:/Users/Admin/datasets')
-	client_subset,client_mask = spliter.random_split()
+	spliter = ImageNetR_Spliter(client_num=client_num, attacker_num=attacker_num, 
+                             task_num=task_count, private_class_num=40, input_size=224, path='C:/Users/Admin/datasets')
+	client_subset,client_mask = spliter.random_split_synchron()
 
 	print(client_mask)
 
@@ -157,3 +157,5 @@ if __name__ == "__main__":
 	global_trainer.evaluate(avg_metrics, comunication_round=comunication_round_count - 1)
 	
 	print(avg_metrics)
+ 
+	write_dict_to_file(avg_metrics, args.log_dir + f'/matrics/repeat-{seed + 1}' + '/avg_metrics.txt')
