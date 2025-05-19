@@ -210,12 +210,12 @@ class ImageNetR_Spliter(Spliter):
 		super().__init__(client_num, attacker_num, task_num, private_class_num, input_size, path)
   
 	def create_dataset(self, path):
-		Imagenet_R = Imagenet_R(root=path, train=True, download=True)
-		Imagenet_R_test = Imagenet_R(root=path, train=False, download=True)
+		imagenet_r_dataset = Imagenet_R(root=path, train=True, download=True)
+		imagenet_r_test_dataset = Imagenet_R(root=path, train=False, download=True)
 
 		self.class_num = 200
-		self.train_set = Imagenet_R
-		self.test_set = Imagenet_R_test
+		self.train_set = imagenet_r_dataset
+		self.test_set = imagenet_r_test_dataset
 
 		self.train_class_counts, self.train_index_by_class_label = self.statistic_dataset_by_label(self.train_set)
 		self.test_class_counts, self.test_index_by_class_label = self.statistic_dataset_by_label(self.test_set)
