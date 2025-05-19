@@ -9,7 +9,8 @@ from utils.utils import federated_average
 
 class FedTrainer:
 	def __init__(self, args, seed: int, metric_keys, save_keys, client_num, attacker_num, 
-			task_count: int, private_class_num, client_count: int, comunication_round_count: int, synchronize: bool = True):
+			task_count: int, private_class_num, client_count: int, comunication_round_count: int, 
+   			synchronize: bool = True, path: str = None):
 		self.args = args
 		self.task_count = task_count
 		self.client_count = client_count
@@ -31,7 +32,7 @@ class FedTrainer:
 			
 		# create spliter
 		spliter = DataSpliter(client_num=client_num, attacker_num=attacker_num, task_num=task_count, 
-						private_class_num=private_class_num, input_size=input_size, path='C:/Users/Admin/datasets')
+						private_class_num=private_class_num, input_size=input_size, path=path)
 
 		# split dataset
 		if synchronize:

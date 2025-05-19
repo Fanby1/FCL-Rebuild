@@ -35,7 +35,7 @@ if __name__ == "__main__":
 	save_keys = ['global']
  
 	fed_trainer = FedTrainer(args, seed, metric_keys, save_keys, client_num, attacker_num, 
-						  task_count, 40, client_count, comunication_round_count)
+						  task_count, 40, client_count, comunication_round_count, path='C:/Users/Admin/datasets')
  
 	fed_trainer.train()
  
