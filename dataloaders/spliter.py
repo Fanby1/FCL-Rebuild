@@ -131,8 +131,8 @@ class Spliter():
 		for class_index in class_mask:
 			if class_index in self.class_public:
 				# 是公共类
-				lenth = int(class_counts[class_index] * self.dirichlet_perclass[class_index][client_index])
-				random_index = self.sample_k_indice(index_by_class_label[class_index], lenth)
+				length = int(class_counts[class_index] * self.dirichlet_perclass[class_index][client_index])
+				random_index = self.sample_k_indice(index_by_class_label[class_index], length)
 				result_index.extend(random_index)
 			else: #是私有类
 				random_index = list(index_by_class_label[class_index])
@@ -196,9 +196,9 @@ class Spliter():
 
 				# 是公共类
 				for k in class_this_task:
-					len = int(int(class_counts[k]) * random.uniform(0.3, 0.85))
+					length = int(int(class_counts[k]) * random.uniform(0.3, 0.85))
 					unused_indice = set(class_label[k])
-					index.extend(self.sample_k_indice(unused_indice, len))
+					index.extend(self.sample_k_indice(unused_indice, length))
 
 				random.shuffle(index)
 				client_subset[i].append(CustomedSubset(trainset, index, trans,None))
@@ -210,12 +210,12 @@ class ImageNetR_Spliter(Spliter):
 		super().__init__(client_num, attacker_num, task_num, private_class_num, input_size, path)
   
 	def create_dataset(self, path):
-		self.Imagenet_R = Imagenet_R(root=path, train=True, download=True)
-		self.Imagenet_R_test = Imagenet_R(root=path, train=False, download=True)
+		Imagenet_R = Imagenet_R(root=path, train=True, download=True)
+		Imagenet_R_test = Imagenet_R(root=path, train=False, download=True)
 
 		self.class_num = 200
-		self.train_set = self.Imagenet_R
-		self.test_set = self.Imagenet_R_test
+		self.train_set = Imagenet_R
+		self.test_set = Imagenet_R_test
 
 		self.train_class_counts, self.train_index_by_class_label = self.statistic_dataset_by_label(self.train_set)
 		self.test_class_counts, self.test_index_by_class_label = self.statistic_dataset_by_label(self.test_set)
@@ -225,12 +225,12 @@ class Cifar100_Spliter(Spliter):
 		super().__init__(client_num, attacker_num, task_num, private_class_num, input_size, path)
   
 	def create_dataset(self, path):
-		self.cifar100_dataset = CIFAR100(root=path, train=True, download=True)
-		self.cifar100_test_dataset = CIFAR100(root=path, train=False, download=True)
+		cifar100_dataset = CIFAR100(root=path, train=True, download=True)
+		cifar100_test_dataset = CIFAR100(root=path, train=False, download=True)
 
 		self.class_num = 100
-		self.train_set = self.cifar100_dataset
-		self.test_set = self.cifar100_test_dataset
+		self.train_set = cifar100_dataset
+		self.test_set = cifar100_test_dataset
 
 		self.train_class_counts, self.train_index_by_class_label = self.statistic_dataset_by_label(self.train_set)
 		self.test_class_counts, self.test_index_by_class_label = self.statistic_dataset_by_label(self.test_set)
