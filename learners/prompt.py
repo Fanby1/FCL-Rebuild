@@ -58,7 +58,7 @@ class Prompt(NormalNN):
 		for i in range(len(self.class_mask)):
 			if self.class_mask[i] not in self.curr_class_mask:
 				logits[:,i] = -float('inf')
-    
+	
 		# # logists
 		# logits, prompt_loss, _ = self.model(inputs, train=True) # original model
 		# logits = logits[:,self.curr_class_mask]
@@ -256,7 +256,7 @@ class CPrompt(Prompt):
 				# eval update
 				self.log('Epoch:{epoch:.0f}/{total:.0f}'.format(epoch=self.epoch+1,total=self.config['schedule'][0]))
 				self.log(' * Loss {loss.avg:.3f} | Train Acc {acc.avg:.3f} | C2 loss {lossp.avg:.3f}'.format(loss=losses[0],acc=acc,lossp=losses[3]))
-            
+			
 				# reset
 				losses = [AverageMeter() for _ in range(4)]
 				acc = AverageMeter()

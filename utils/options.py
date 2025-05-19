@@ -34,7 +34,7 @@ def create_args():
 	
  	# fed args
 	parser.add_argument('--fedMoon', nargs="+", type=int, default=[2],
-                     	 help="Fed ConMon 2 is the fedmoon version , 1 is the triplet loss + 1 ortho replacement, 3 is considering fedmoon with 1 ortho replacement")
+					 	 help="Fed ConMon 2 is the fedmoon version , 1 is the triplet loss + 1 ortho replacement, 3 is considering fedmoon with 1 ortho replacement")
 
 	# Config Arg
 	parser.add_argument('--config', type=str, default="configs/cifar-100_prompt.yaml",

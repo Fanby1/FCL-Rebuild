@@ -13,7 +13,7 @@ from dataloaders.continual_datasets import Imagenet_R
 from torchvision.datasets import MNIST,CIFAR100
 
 class Spliter():
-    
+	
 	class_num: int
 	train_set: object
 	test_set: object
@@ -100,7 +100,7 @@ class Spliter():
 		return client_mask
 		
 	def random_split_subsets(self, data_set: Sequence[tuple[int, object]], train: bool, class_counts: list[int], 
-                          index_by_class_label: list[set[int]]) -> tuple[list[CustomedSubset], list[list[int]]]:
+						  index_by_class_label: list[set[int]]) -> tuple[list[CustomedSubset], list[list[int]]]:
 		trans = build_transform(train,self.input_size)
 
 		client_subset = [[None] * self.task_num for _ in range(0,self.client_num + self.attacker_num)]
@@ -115,7 +115,7 @@ class Spliter():
 		for client_index in tqdm(range(self.client_num)):
 			for task_index in range(self.task_num):
 				sample_indices = self.random_split_indices_in_task(client_index, task_index,
-                                    class_counts, index_by_class_label)
+									class_counts, index_by_class_label)
 				client_subset[client_index][task_index] = CustomedSubset(data_set, sample_indices, trans, None)
 				for attacker_index in range(self.attacker_num):
 					if client_index == self.attacker_client_index[attacker_index]:
@@ -124,7 +124,7 @@ class Spliter():
 		
 
 	def random_split_indices_in_task(self, client_index: int, task_index: int,
-                                class_counts: list[int], index_by_class_label: list[set[int]]) -> list[int]:
+								class_counts: list[int], index_by_class_label: list[set[int]]) -> list[int]:
 		class_mask = self.client_mask[client_index][task_index]	
 		# print(f"client_index: {client_index}, task_index: {task_index}, class_mask: {class_mask}")
 		result_index = []
@@ -145,14 +145,13 @@ class Spliter():
 	def random_split(self):
 		client_mask, class_public, class_private = self.random_split_class_mask()
 		client_subset = self.random_split_subsets(self.train_set, True, self.train_class_counts.copy(), 
-                                            self.train_index_by_class_label.copy())
+											self.train_index_by_class_label.copy())
 
 		return client_subset,client_mask
 
 
 	def process_testdata(self,surrogate_num):
 		trans = build_transform(False,self.input_size)
-		class_counts = self.test_class_counts
 		index_by_class_label = self.test_index_by_class_label.copy()
 
 		surro_index =[]

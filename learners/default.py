@@ -237,7 +237,7 @@ class NormalNN(nn.Module):
 					target[target == class_mask[i]] = i
 	
 				acc = accumulate_acc(output, target, task, acc, topk=(self.top_k,))
-    
+	
 		model.train(orig_mode)
 
 		if verbal:

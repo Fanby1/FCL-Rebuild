@@ -1,7 +1,12 @@
 import sys
 import copy
 import json
+import os
+import random
+import numpy as np
+import torch
 from datetime import datetime
+
 
 # want to save everything printed to outfile
 class Logger(object):
@@ -18,9 +23,6 @@ class Logger(object):
   
 def set_seed(seed):
 	"""Set random seed for reproducibility."""
-	import random
-	import numpy as np
-	import torch
 
 	random.seed(seed)
 	np.random.seed(seed)
@@ -92,8 +94,6 @@ def federated_average(all_client_trainers, num_samples, class_mask = None):
 		w_avg[key] = weighted_sum
 	return w_avg
 
-import torch
-
 def generate_index(input_list, target_list):
 	"""
 	根据目标列表生成索引张量，将目标列表中存在的数对应位置置为1，其他位置为0。
@@ -125,12 +125,19 @@ def trace_handler(prof: torch.profiler.profile):
    prof.export_memory_timeline(f"{file_name}.html", device="cuda:0")
    
 def write_dict_to_file(dictionary, file_path):
-    """
-    将字典写入文件。
+	"""
+	将字典写入文件。
 
-    参数:
-        dictionary (dict): 要写入的字典。
-        file_path (str): 文件路径。
-    """
-    with open(file_path, 'w', encoding='utf-8') as file:
-        json.dump(dictionary, file, ensure_ascii=False, indent=4)
+	参数:
+		dictionary (dict): 要写入的字典。
+		file_path (str): 文件路径。
+	"""
+	if not isinstance(dictionary, dict):
+		raise ValueError("The input must be a dictionary.")
+
+	directory = os.path.dirname(file_path)
+	if not os.path.exists(directory):
+		os.makedirs(directory)
+  
+	with open(file_path, 'w', encoding='utf-8') as file:
+		json.dump(dictionary, file, ensure_ascii=False, indent=4)
