@@ -91,7 +91,7 @@ class Prompt(NormalNN):
 			params_to_opt = list(self.model.module.prompt.parameters()) + list(self.model.module.last.parameters())
 		else:
 			params_to_opt = list(self.model.prompt.parameters()) + list(self.model.last.parameters())
-		print('*****************************************')
+		print('-----------------------initializing optimizer-----------------------')
 		optimizer_arg = {'params':params_to_opt,
 						 'lr':self.config['lr'],
 						 'weight_decay':self.config['weight_decay']}

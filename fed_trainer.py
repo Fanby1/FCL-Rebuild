@@ -64,32 +64,21 @@ class FedTrainer:
    
 	def split_global_data(self):
 		# culculate global data and mask
-		self.global_datas = []
-		self.global_masks = []
-		for i in range(self.task_count):
-			self.global_masks.append([])
-			self.global_datas.append([])
-			for j in range(self.client_count):
-				self.global_masks[i].extend(self.client_mask[j][i])
-			self.global_masks[i] = list(set(self.global_masks[i]))
-
-			for idx in range(len(self.test_data.indices)):
-				if self.test_data.targets[idx] in self.global_masks[i]:
-					self.global_datas[i].append(idx)
-			self.global_datas[i] = Subset(self.test_data, self.global_datas[i])
-   
+		self.global_datas = copy.deepcopy(self.client_data_val)
+		self.global_masks = copy.deepcopy(self.client_mask)
 	def init_metric(self):
 		for i in range(self.client_count):
 			self.save_keys.append(f'client-{i + 1}')
+			self.save_keys.append(f'global-{i + 1}')
 
 		self.avg_metrics = {}
 		for mkey in self.metric_keys: 
 			self.avg_metrics[mkey] = {}
 			for skey in self.save_keys: 
-				self.avg_metrics[mkey][skey] = [None] * self.task_count
+				self.avg_metrics[mkey][skey] = [0.0] * self.task_count
    
 	def init_trainner(self):
-		self.learner_pool = []
+		self.learner_pool: list[Trainer] = []
 		self.client_weight = [1] * self.client_count
 				
 		self.global_trainer = Trainer(self.args, self.seed, self.metric_keys, self.save_keys, 
@@ -120,16 +109,22 @@ class FedTrainer:
 						self.global_trainer.learner.model.prompt.process_task_count()
 
 			for comunication_round in range(self.comunication_round_count):
-				for j in range(self.client_count):
+				for client_index in range(self.client_count):
 					# torch.cuda.memory._record_memory_history()			   # 开始记录
 					# # distribute model to clients	 
 					if comunication_round == 0 and task != 0:
-						self.learner_pool[j].before_task(self.global_trainer.learner.model, previous_global_trainer.model, task, comunication_round, j)
+						self.learner_pool[client_index].before_task(self.global_trainer.learner.model, previous_global_trainer.model, task, comunication_round, client_index)
 					else:
-						self.learner_pool[j].before_task(self.global_trainer.learner.model, None, task, comunication_round, j)
+						self.learner_pool[client_index].before_task(self.global_trainer.learner.model, None, task, comunication_round, client_index)
 
 					# train model
-					self.learner_pool[j].train(self.avg_metrics)
+					self.learner_pool[client_index].train(self.avg_metrics)
+     
+					# evaluate model
+					if comunication_round == self.comunication_round_count - 1:
+						print(f"-------------------------local evaluate split client {client_index}--------------------------")
+						self.learner_pool[client_index].evaluate_task(self.avg_metrics, comunication_round=comunication_round, task_index=task)
+						print(f"-------------------------local evaluate split client {client_index} finished--------------------------")
 					# torch.cuda.memory._dump_snapshot("my_snapshot.pickle")   # 保存文件
 					# torch.cuda.memory._record_memory_history(enabled=None)   # 终止记录
 					# exit(0)
@@ -140,6 +135,15 @@ class FedTrainer:
 				model_save_dir = self.global_trainer.model_top_dir + f'/models/repeat-{self.seed + 1}/client-{0}/task-{task+1}/comunication_round-{comunication_round}/'
 				if not os.path.exists(model_save_dir): os.makedirs(model_save_dir)
 				self.global_trainer.learner.save_model(model_save_dir)
+
+				# evaluate global model
+				if comunication_round == self.comunication_round_count - 1:
+					print(f"-------------------------global evaluate--------------------------")
+					for global_client_index in range(self.client_count):
+						print(f"-------------------------global evaluate split client {global_client_index}--------------------------")
+						self.global_trainer.evaluate_task(self.avg_metrics, comunication_round=comunication_round, task_index=task, global_client_index=global_client_index)
+						print(f"-------------------------global evaluate split client {global_client_index} finished--------------------------")
+					print(f"-------------------------global evaluate finished--------------------------")
 	
 	def evaluate(self):
 		for client_index in range(self.client_count):

@@ -500,12 +500,10 @@ class ViTZoo(nn.Module):
 			del load_dict['head.weight']; del load_dict['head.bias']
 			zoo_model.load_state_dict(load_dict)
 			if prompt_flag:
-				print(" freezing original model")
 				for n,p  in zoo_model.named_parameters():
 					if not "prompt" in n:
 						# print(f"freezing {n}")
 						p.requires_grad = False
-				print(" done freezing original model")
 
 
 		# classifier

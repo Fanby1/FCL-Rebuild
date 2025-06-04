@@ -124,7 +124,7 @@ def trace_handler(prof: torch.profiler.profile):
    # 导出mem消耗可视化数据
    prof.export_memory_timeline(f"{file_name}.html", device="cuda:0")
    
-def write_dict_to_file(dictionary, file_path):
+def write_dict_to_file(dictionary, file_path, metrics_keys=None, save_keys=None):
 	"""
 	将字典写入文件。
 
@@ -139,5 +139,20 @@ def write_dict_to_file(dictionary, file_path):
 	if not os.path.exists(directory):
 		os.makedirs(directory)
   
+	client_pool = sorted(save_keys)
+	record_key = metrics_keys
+ 
 	with open(file_path, 'w', encoding='utf-8') as file:
-		json.dump(dictionary, file, ensure_ascii=False, indent=4)
+		for client in client_pool:
+			for key in record_key:
+				try:
+					text = dictionary[key][client]
+					line = "\t".join([f"{content:.2f}%" for content in text])
+					file.write(line + "\n")
+				except TypeError:
+					pass
+			file.write("\n")
+   
+		json.dump(dictionary, file, indent=4, ensure_ascii=False)
+  
+

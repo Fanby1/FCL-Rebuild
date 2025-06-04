@@ -14,8 +14,8 @@ if __name__ == "__main__":
 	schedule = args.schedule
 	seed = 2024
 	set_seed(seed)
-	client_num = 5
-	attacker_num = 3 
+	client_num = 2
+	attacker_num = 0 
 	task_count = 5
  
 	client_count = client_num + attacker_num
@@ -33,10 +33,10 @@ if __name__ == "__main__":
 		yaml.dump(vars(args), yaml_file, default_flow_style=False)
 
 	metric_keys = ['task-1-acc', 'last-task-acc','time']
-	save_keys = ['global']
+	save_keys = []
  
 	fed_trainer = FedTrainer(args, seed, metric_keys, save_keys, client_num, attacker_num, 
-						  task_count, 40, client_count, comunication_round_count, path='C:/Users/Admin/datasets')
+						  task_count, 40, client_count, comunication_round_count, synchronize=False, path='C:/Users/Admin/datasets')
  
 	fed_trainer.train()
  

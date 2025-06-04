@@ -9,6 +9,7 @@ from collections import OrderedDict
 import dataloaders
 from dataloaders.utils import *
 from torch.utils.data import DataLoader
+from utils.utils import write_dict_to_file
 import learners
 
 class Trainer:
@@ -45,7 +46,8 @@ class Trainer:
 		self.test_dataset = test_dataset
 		self.validate_dataset = validate_dataset
 		for i in range(len(class_mask)):
-			class_mask[i] = sorted(class_mask[i])
+			if not isinstance(class_mask[i][0], list):	
+				class_mask[i] = sorted(class_mask[i])
 		self.class_mask = class_mask
 
 		# upper bound flag
@@ -98,26 +100,37 @@ class Trainer:
 		self.learner_type, self.learner_name = args.learner_type, args.learner_name
 		self.learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
 
-	def task_eval(self, t_index, t_last=-1, task='acc', test=False, in_task=False):
-
+	def task_eval(self, t_index, t_last=-1, task='acc', test=False, in_task=False, global_client_index=-1, learner=None):
+		if learner is None:
+			learner = self.learner
 		val_name = self.task_names[t_index]
 		print('validation split name:', val_name)
   
 		if test:
-			val_dataset = self.test_dataset[t_index]
+			if global_client_index == -1:
+				val_dataset = self.test_dataset[t_index]
+			else:
+				val_dataset = self.test_dataset[global_client_index][t_index]
 		else:
-			val_dataset = self.validate_dataset[t_index]
+			if global_client_index == -1:
+				val_dataset = self.validate_dataset[t_index]
+			else:
+				val_dataset = self.validate_dataset[global_client_index][t_index]
 		# eval
 		class_mask = []
 		if in_task:
 			class_mask = self.class_mask[t_index]
 		else:
-			for i in range(t_last + 1):
-				class_mask.extend(self.class_mask[i])
+			if global_client_index == -1:
+				for i in range(t_last + 1):
+					class_mask.extend(self.class_mask[i])
+			else:
+				for i in range(t_last + 1):
+					class_mask.extend(self.class_mask[global_client_index][i])
 		class_mask = sorted(list(set(class_mask)))
 		# val_loader = DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.workers)
 		val_loader = DataLoader(val_dataset, batch_size=self.batch_size * 2, shuffle=False, drop_last=False, num_workers=self.workers)
-		return self.learner.validation(val_loader, class_mask = class_mask, task_metric=task, task_index = t_index)
+		return learner.validation(val_loader, class_mask = class_mask, task_metric=task, task_index = t_index)
 
 	def train(self, avg_metrics):
 	
@@ -164,10 +177,10 @@ class Trainer:
 
 		# evaluate acc
 		train_acc = []
-		train_acc.append(self.task_eval(self.curr_task, t_last=self.curr_task))
-		train_acc.append(self.task_eval(self.curr_task, t_last=self.curr_task, in_task=True))
-		train_acc.append(self.task_eval(0, t_last=self.curr_task))
-		train_acc.append(self.task_eval(0, t_last=self.curr_task, in_task=True))
+		# train_acc.append(self.task_eval(self.curr_task, t_last=self.curr_task))
+		# train_acc.append(self.task_eval(self.curr_task, t_last=self.curr_task, in_task=True))
+		# train_acc.append(self.task_eval(0, t_last=self.curr_task))
+		# train_acc.append(self.task_eval(0, t_last=self.curr_task, in_task=True))
 
 		# save temporary acc results
 		for mkey in ['acc']:
@@ -180,6 +193,43 @@ class Trainer:
 		self.learner.save_model(model_save_dir)
   
 		return avg_metrics 
+
+	def evaluate_task(self, avg_metrics, comunication_round=0, task_index=-1, global_client_index=-1):
+		evaluate_learner = learners.__dict__[self.learner_type].__dict__[self.learner_name](self.learner_config)
+				
+		# increment task id in prompting modules
+		if task_index > 0:
+			try:
+				if evaluate_learner.model.module.prompt is not None:
+					evaluate_learner.model.module.prompt.task_count = task_index
+			except:
+				if evaluate_learner.model.prompt is not None:
+					evaluate_learner.model.prompt.task_count = task_index
+     
+		# load model
+		model_save_dir = self.model_top_dir + f'/models/repeat-{self.seed+1}/client-{self.client_index}/task-{self.task_names[task_index]}/comunication_round-{comunication_round}/'
+		evaluate_learner.task_count = task_index 
+		evaluate_learner.pre_steps()
+		evaluate_learner.load_model(model_save_dir)
+  
+		# set task id for model (needed for prompting)
+		try:
+			evaluate_learner.model.module.task_id = task_index
+		except:
+			evaluate_learner.model.task_id = task_index
+
+		# evaluate acc
+		skey = f'global-{global_client_index + 1}' if self.client_index == 0 else f'client-{self.client_index}'
+		mkey = 'task-1-acc'
+		avg_metrics[mkey][skey][task_index] = self.task_eval(0, t_last=task_index, test=False, global_client_index=global_client_index, learner=evaluate_learner)
+   
+		mkey = 'last-task-acc'
+		avg_metrics[mkey][skey][task_index] = self.task_eval(task_index, t_last=task_index, test=False, global_client_index=global_client_index, learner=evaluate_learner)
+			
+		# print results
+		write_dict_to_file(avg_metrics, self.log_dir + f'/metrics/repeat-{self.seed + 1}/avg_metrics.txt', [k for k in self.metric_keys if 'acc' in k], save_keys=self.save_keys)
+		evaluate_learner.cpu()
+
 
 	def evaluate(self, avg_metrics, comunication_round=0):
 
