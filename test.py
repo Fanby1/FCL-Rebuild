@@ -11,17 +11,18 @@ from fed_trainer import FedTrainer
 if __name__ == "__main__":
 	args = get_args(sys.argv[1:])
 
-	seed = 1999
+	schedule = args.schedule
+	seed = 2024
 	set_seed(seed)
 	client_num = 5
-	attacker_num = 0
+	attacker_num = 3 
+	task_count = 5
  
 	client_count = client_num + attacker_num
 	client_weight = [1] * client_count
  
-	comunication_round_count = 5
- 
-	task_count = 5
+	comunication_round_count = schedule[1]
+
 	# duplicate output stream to output file
 	if not os.path.exists(args.log_dir): os.makedirs(args.log_dir)
 	log_out = args.log_dir + '/output.log'

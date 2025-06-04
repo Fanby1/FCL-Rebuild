@@ -23,7 +23,7 @@ class FedTrainer:
   
 		if args.dataset == 'CIFAR100':
 			DataSpliter = dataloaders.Cifar100_Spliter
-			input_size = 32
+			input_size = 224
 		elif args.dataset == 'ImageNet_R':
 			DataSpliter = dataloaders.ImageNetR_Spliter
 			input_size = 224
@@ -48,10 +48,6 @@ class FedTrainer:
 		self.init_metric()
 		self.init_trainner()
   
-	def train(self, avg_metrics):
-		for trainer in self.trainers:
-			trainer.train(avg_metrics)
-   
 	def split_data(self):
 		self.client_data_train = []
 		self.client_data_val = []
