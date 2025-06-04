@@ -14,7 +14,7 @@ if __name__ == "__main__":
 	schedule = args.schedule
 	seed = 2024
 	set_seed(seed)
-	client_num = 2
+	client_num = 5
 	attacker_num = 0 
 	task_count = 5
  
@@ -40,4 +40,4 @@ if __name__ == "__main__":
  
 	fed_trainer.train()
  
-	fed_trainer.evaluate()
+	# fed_trainer.evaluate()
